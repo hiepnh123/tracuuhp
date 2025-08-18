@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tra cứu Học phần</title>
+  <style>
+    :root { --border:#e5e7eb; --muted:#6b7280; --bg:#fafafa; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    h1 { margin: 0 0 12px; font-size: 20px; }
+    .toolbar { display: grid; grid-template-columns: 1fr 220px 280px; gap: 12px; margin-bottom: 12px; }
+    input, select { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; font-size: 14px; }
+    th { position: sticky; top: 0; background: var(--bg); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background:#f3f4f6; font-size: 12px; margin: 2px 4px 0 0; }
+    .muted { color: var(--muted); }
+    #count { font-size: 13px; color: var(--muted); margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Tra cứu Học phần <span id="count"></span></h1>
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Tìm theo Mã HP, Tên HP, Tên tiếng Anh…" />
+    <select id="donvi"><option value="">— Lọc theo Đơn vị quản lý —</option></select>
+    <select id="ctdt"><option value="">— Lọc theo CTĐT Ngành —</option></select>
+  </div>
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>Mã HP</th>
+        <th>Tên học phần</th>
+        <th>Tên tiếng Anh</th>
+        <th>Số TC</th>
+        <th>LT</th>
+        <th>TH</th>
+        <th>CTĐT Ngành</th>
+        <th>Đơn vị quản lý</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+const DATA_URL = "master_list_data.json";
+let DATA = [];
+let state = { q: "", donvi: "", ctdt: "" };
+
+const els = {
+  q: document.getElementById("q"),
+  donvi: document.getElementById("donvi"),
+  ctdt: document.getElementById("ctdt"),
+  tblBody: document.querySelector("#tbl tbody"),
+  count: document.getElementById("count"),
+};
+
+function norm(s){ return (s||"").toString().toLowerCase().trim(); }
+
+function matches(row) {
+  const q = norm(state.q);
+  if (q) {
+    const hay = [row.ma_hp, row.ten_hp, row.ten_en].map(norm).join(" | ");
+    if (!hay.includes(q)) return false;
+  }
+  if (state.donvi && norm(row.don_vi_quan_ly) !== norm(state.donvi)) return false;
+  if (state.ctdt && !norm(row.ctdt_nganh).includes(norm(state.ctdt))) return false;
+  return true;
+}
+
+function render() {
+  const rows = DATA.filter(matches);
+  els.count.textContent = `(${rows.length} / ${DATA.length})`;
+  els.tblBody.innerHTML = rows.map(r => `
+    <tr>
+      <td><strong>${r.ma_hp || ""}</strong></td>
+      <td>${r.ten_hp || ""}</td>
+      <td class="muted">${r.ten_en || ""}</td>
+      <td>${r.so_tc || ""}</td>
+      <td>${r.tc_lt || ""}</td>
+      <td>${r.tc_th || ""}</td>
+      <td>${(r.ctdt_nganh||"").split(";").map(x=>x.trim()).filter(Boolean).map(x=>`<span class="pill">${x}</span>`).join("")}</td>
+      <td>${r.don_vi_quan_ly || ""}</td>
+    </tr>
+  `).join("");
+}
+
+function populateFilters() {
+  const donvis = [...new Set(DATA.map(r => r.don_vi_quan_ly).filter(Boolean))].sort();
+  const ctdts  = [...new Set(DATA.flatMap(r => (r.ctdt_nganh||"").split(";").map(x=>x.trim()).filter(Boolean)))].sort();
+  for (const dv of donvis){ const o=document.createElement("option"); o.value=dv; o.textContent=dv; els.donvi.appendChild(o); }
+  for (const c of ctdts){ const o=document.createElement("option"); o.value=c; o.textContent=c; els.ctdt.appendChild(o); }
+}
+
+function attachEvents() {
+  els.q.addEventListener("input", ()=>{ state.q=els.q.value; render(); });
+  els.donvi.addEventListener("change", ()=>{ state.donvi=els.donvi.value; render(); });
+  els.ctdt.addEventListener("change", ()=>{ state.ctdt=els.ctdt.value; render(); });
+}
+
+fetch(DATA_URL).then(r=>r.json()).then(json=>{
+  DATA = json;
+  populateFilters();
+  attachEvents();
+  render();
+}).catch(err=>{
+  console.error(err);
+  els.tblBody.innerHTML = '<tr><td colspan="8">Không tải được dữ liệu JSON. Hãy đặt "index.html" và "master_list_data.json" cùng thư mục.</td></tr>';
+});
+</script>
+</body>
+</html>
